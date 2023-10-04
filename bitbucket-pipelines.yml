@@ -1,0 +1,113 @@
+image: node:12.20.1
+pipelines:
+  default:
+    - step:
+        size: 2x
+        name: Lint
+        script:
+          - npm ci
+          - export NODE_OPTIONS=--max_old_space_size=6144
+          - npm run build:development
+    - step:
+        name: 'Test'
+        script:
+          - apt-get update && apt-get install -y
+          - apt install jq -y
+          - npm install
+          - npm run test
+  branches:
+    dev:
+      - step:
+          name: Run tests
+          script:
+            - npm install
+            - npm run test
+      - step:
+          size: 2x
+          name: Install & Build
+          caches:
+            - node
+          script:
+            - npm ci
+            - export NODE_OPTIONS=--max_old_space_size=6144
+            - npm run build:development
+          artifacts:
+            - build/**
+      - step:
+          name: Deploy to S3
+          deployment: staging
+          script:
+            - pipe: atlassian/aws-s3-deploy:0.2.4
+              variables:
+                AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+                AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+                AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+                S3_BUCKET: $S3_BUCKET
+                ACL: 'public-read'
+                LOCAL_PATH: 'build'
+            - pipe: atlassian/aws-cloudfront-invalidate:0.6.0
+              variables:
+                AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+                AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+                AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+                DISTRIBUTION_ID: $AWS_DISTRIBUTION_ID
+    staging:
+      - step:
+          size: 2x
+          name: Install & Build
+          caches:
+            - node
+          script:
+            - npm ci
+            - export NODE_OPTIONS=--max_old_space_size=6144
+            - npm run build
+          artifacts:
+            - build/**
+      - step:
+          name: Deploy to S3
+          deployment: staging-patricia
+          script:
+            - pipe: atlassian/aws-s3-deploy:0.2.4
+              variables:
+                AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+                AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+                AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+                S3_BUCKET: $S3_BUCKET
+                ACL: 'public-read'
+                LOCAL_PATH: 'build'
+            - pipe: atlassian/aws-cloudfront-invalidate:0.6.0
+              variables:
+                AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+                AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+                AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+                DISTRIBUTION_ID: $AWS_DISTRIBUTION_ID
+    prod:
+      - step:
+          size: 2x
+          name: Install & Build
+          caches:
+            - node
+          script:
+            - npm ci
+            - export NODE_OPTIONS=--max_old_space_size=6144
+            - npm run build-prod
+          artifacts:
+            - build/**
+      - step:
+          name: Deploy to S3
+          deployment: prod-patricia
+          script:
+            - pipe: atlassian/aws-s3-deploy:0.2.4
+              variables:
+                AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+                AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+                AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+                S3_BUCKET: $S3_BUCKET
+                ACL: 'public-read'
+                LOCAL_PATH: 'build'
+            - pipe: atlassian/aws-cloudfront-invalidate:0.6.0
+              variables:
+                AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+                AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+                AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+                DISTRIBUTION_ID: $AWS_DISTRIBUTION_ID
